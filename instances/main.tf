@@ -12,11 +12,28 @@ terraform {
 provider "aws" {
   region = var.region
 }
+locals {
+  required_tags = {
+    project     = var.project_name,
+    environment = var.environment
+  }
+  tags = merge(var.resource_tags, local.required_tags)
+}
+
+
+locals {
+  name_suffix = "${var.project_name}-${var.environment}"
+}
+
+data "aws_availability_zones" "available" {
+  state = "available"
+}
 
 resource "aws_vpc" "vpc" {
   cidr_block           = var.cidr_vpc
   enable_dns_support   = true
   enable_dns_hostnames = true
+  // name                 = "vpc-${local.name_suffix}"
 }
 
 resource "aws_internet_gateway" "igw" {
@@ -43,7 +60,7 @@ resource "aws_route_table_association" "rta_subnet_public" {
 }
 
 resource "aws_security_group" "sg_22_80" {
-  name   = "sg_22"
+  name   = "web-sg-${local.name_suffix}"
   vpc_id = aws_vpc.vpc.id
 
   # SSH access from the VPC
@@ -77,17 +94,25 @@ resource "aws_security_group" "sg_22_80" {
 }
 
 resource "aws_instance" "web" {
-  ami                         = "ami-08f530f8d4a33cb40" //  TO DO
+  ami                         = data.aws_ami.amazon_linux.id
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.subnet_public.id
   vpc_security_group_ids      = [aws_security_group.sg_22_80.id]
   associate_public_ip_address = true
-
+  //count                       = var.instances_per_subnet
   tags = {
-    Name = "Packer-build"
+    Name = "Salford Server"
   }
 }
 
-output "public_ip" {
-  value = aws_instance.web.public_ip
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
 }
+data "aws_region" "current" {}
+

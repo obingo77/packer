@@ -7,9 +7,22 @@ variable "cidr_subnet" {
   default     = "10.1.0.0/24"
 }
 
-variable "environment_tag" {
+variable "resource_tags" {
   description = "Environment tag"
-  default     = "Learn"
+  type        = map(string)
+  default     = {}
+}
+
+variable "project_name" {
+  description = "Name of the project."
+  type        = string
+  default     = "Dunkers Team"
+}
+
+variable "environment" {
+  description = "Name of the environment."
+  type        = string
+  default     = "dev"
 }
 
 variable "region" {
@@ -17,3 +30,9 @@ variable "region" {
   type        = string
   default     = "us-east-1"
 }
+
+/*variable "instances_per_subnet" {
+  description = "Number of EC2 instances in each private subnet"
+  type        = number
+  default     = 2
+}*/

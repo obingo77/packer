@@ -1,13 +1,4 @@
 #---main.tf---
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 3.26.0"
-    }
-  }
-
-}
 
 provider "aws" {
   region = var.region
@@ -29,80 +20,42 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-resource "aws_vpc" "vpc" {
-  cidr_block           = var.cidr_vpc
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-  // name                 = "vpc-${local.name_suffix}"
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "2.64.0"
+
+  name = "main-vpc"
+  cidr = var.vpc_cidr_block
+
+  azs             = data.aws_availability_zones.available.names
+  private_subnets = slice(var.private_subnet_cidr_blocks, 0, var.private_subnet_count)
+  public_subnets  = slice(var.public_subnet_cidr_blocks, 0, var.public_subnet_count)
+
+  enable_nat_gateway = false
+  enable_vpn_gateway = var.enable_vpn_gateway
 }
 
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.vpc.id
+module "app_security_group" {
+  source  = "terraform-aws-modules/security-group/aws//modules/web"
+  version = "3.17.0"
+
+  name        = "web-sg"
+  description = "Security group for web-servers with HTTP ports open within VPC"
+  vpc_id      = module.vpc.vpc_id
+
+  #   ingress_cidr_blocks = module.vpc.public_subnets_cidr_blocks
+  ingress_cidr_blocks = ["0.0.0.0/0"]
 }
 
-resource "aws_subnet" "subnet_public" {
-  vpc_id     = aws_vpc.vpc.id
-  cidr_block = var.cidr_subnet
-}
+module "lb_security_group" {
+  source  = "terraform-aws-modules/security-group/aws//modules/web"
+  version = "3.17.0"
 
-resource "aws_route_table" "rtb_public" {
-  vpc_id = aws_vpc.vpc.id
+  name        = "lb-sg"
+  description = "Security group for load balancer with HTTP ports open within VPC"
+  vpc_id      = module.vpc.vpc_id
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
-  }
-}
-
-resource "aws_route_table_association" "rta_subnet_public" {
-  subnet_id      = aws_subnet.subnet_public.id
-  route_table_id = aws_route_table.rtb_public.id
-}
-
-resource "aws_security_group" "sg_22_80" {
-  name   = "web-sg-${local.name_suffix}"
-  vpc_id = aws_vpc.vpc.id
-
-  # SSH access from the VPC
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_instance" "web" {
-  ami                         = data.aws_ami.amazon_linux.id
-  instance_type               = "t2.micro"
-  subnet_id                   = aws_subnet.subnet_public.id
-  vpc_security_group_ids      = [aws_security_group.sg_22_80.id]
-  associate_public_ip_address = true
-  //count                       = var.instances_per_subnet
-  tags = {
-    Name = "Salford Server"
-  }
+  ingress_cidr_blocks = ["0.0.0.0/0"]
 }
 
 data "aws_ami" "amazon_linux" {
@@ -114,5 +67,27 @@ data "aws_ami" "amazon_linux" {
     values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
 }
-data "aws_region" "current" {}
 
+resource "random_pet" "app" {
+  length    = 2
+  separator = "-"
+}
+
+resource "aws_lb" "app" {
+  name               = "main-app-${random_pet.app.id}-lb"
+  internal           = false
+  load_balancer_type = "application"
+  subnets            = module.vpc.public_subnets
+  security_groups    = [module.lb_security_group.this_security_group_id]
+}
+
+resource "aws_lb_listener" "app" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.blue.arn
+  }
+}

@@ -1,7 +1,13 @@
 output "tags" {
   value = local.tags
 }
-output "public_ip" {
+
+output "lb_dns_name" {
+  value = aws_lb.app.dns_name
+}
+
+
+/*output "public_ip" {
   value = aws_instance.web.public_ip
 }
 
@@ -14,8 +20,10 @@ output "aws_region" {
   value       = data.aws_region.current.name
 }
 
-
-
+output "lb_dns_name" {
+  value = aws_lb.app.dns_name
+}
+*/
 
 
 

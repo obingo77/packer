@@ -10,7 +10,7 @@ packer {
 source "amazon-ebs" "ubuntu" {
   ami_name      = "${var.ami_prefix}-${local.timestamp}"
   instance_type = var.instance_type
-  region        =  var.aws_region
+  region        = var.aws_region
   source_ami_filter {
     filters = {
       name                = "ubuntu/images/*ubuntu-xenial-16.04-amd64-server-*"
@@ -24,11 +24,9 @@ source "amazon-ebs" "ubuntu" {
 }
 
 build {
-<<<<<<<<< saved version
+
   name = "packer-built"
-=========
-  name    = "packer-built"
->>>>>>>>> local version
+
   sources = [
     "source.amazon-ebs.ubuntu"
   ]
@@ -46,7 +44,7 @@ build {
     ]
   }
 
-
+}
 locals {
   timestamp = regex_replace(timestamp(), "[- TZ:]", "")
 }

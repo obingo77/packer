@@ -8,9 +8,9 @@ packer {
 }
 
 source "amazon-ebs" "ubuntu" {
-  ami_name      = "learn-packer-linux-aws-redis-msg"
-  instance_type = "t2.micro"
-  region        = "us-west-2"
+  ami_name      = "${var.ami_prefix}-${local.timestamp}"
+  instance_type = var.instance_type
+  region        =  var.aws_region
   source_ami_filter {
     filters = {
       name                = "ubuntu/images/*ubuntu-xenial-16.04-amd64-server-*"
@@ -24,7 +24,11 @@ source "amazon-ebs" "ubuntu" {
 }
 
 build {
-  name    = "learn-packer"
+<<<<<<<<< saved version
+  name = "packer-built"
+=========
+  name    = "packer-built"
+>>>>>>>>> local version
   sources = [
     "source.amazon-ebs.ubuntu"
   ]
@@ -38,14 +42,10 @@ build {
       "sleep 30",
       "sudo apt-get update",
       "sudo apt-get install -y redis-server",
-      "echo \"FOO is $FOO\" > example.txt",
+      "echo \"FOO is $FOO\" > file.txt",
     ]
   }
 
-  provisioner "shell" {
-    inline = ["echo This provisioner runs last"]
-  }
-}
 
 locals {
   timestamp = regex_replace(timestamp(), "[- TZ:]", "")
